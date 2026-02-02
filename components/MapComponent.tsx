@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
+import { Layers } from 'lucide-react';
 import { Activity, Coordinates } from '../types';
 import { GPX_WAYPOINTS, MARSEILLE_TRACK } from '../constants';
 
@@ -13,20 +14,52 @@ const MapComponent: React.FC<MapComponentProps> = ({ activities, userLocation, f
     const mapContainerRef = useRef<HTMLDivElement>(null);
     const mapInstanceRef = useRef<L.Map | null>(null);
     const layersRef = useRef<L.Layer[]>([]);
+    const tileLayerRef = useRef<L.TileLayer | null>(null);
+    const [isSatellite, setIsSatellite] = useState(false);
 
+    // Initialize Map
     useEffect(() => {
         if (!mapContainerRef.current || mapInstanceRef.current) return;
+        
+        // Create map instance without adding tile layer yet
         const map = L.map(mapContainerRef.current, { zoomControl: false }).setView([43.2965, 5.3698], 13);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
+        
         mapInstanceRef.current = map;
         return () => { map.remove(); mapInstanceRef.current = null; };
     }, []);
 
+    // Handle Tile Layer Switching
+    useEffect(() => {
+        const map = mapInstanceRef.current;
+        if (!map) return;
+
+        // Remove existing tile layer if it exists
+        if (tileLayerRef.current) {
+            map.removeLayer(tileLayerRef.current);
+        }
+
+        // Define URLs and Attributions
+        const url = isSatellite 
+            ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+            : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+        
+        const attribution = isSatellite
+            ? 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+            : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+
+        // Add new layer
+        const newLayer = L.tileLayer(url, { attribution, maxZoom: 19 }).addTo(map);
+        newLayer.bringToBack(); // Ensure markers stay on top
+        tileLayerRef.current = newLayer;
+
+    }, [isSatellite]);
+
+    // Handle Markers, Track and Waypoints
     useEffect(() => {
         const map = mapInstanceRef.current;
         if (!map) return;
         
-        // Clear existing layers
+        // Clear existing layers (markers, polyline)
         layersRef.current.forEach(layer => layer.remove());
         layersRef.current = [];
 
@@ -68,13 +101,27 @@ const MapComponent: React.FC<MapComponentProps> = ({ activities, userLocation, f
         }
     }, [activities, userLocation]);
 
+    // Handle Focus
     useEffect(() => {
         if (mapInstanceRef.current && focusedLocation) {
             mapInstanceRef.current.flyTo([focusedLocation.lat, focusedLocation.lng], 16);
         }
     }, [focusedLocation]);
 
-    return <div ref={mapContainerRef} className="w-full h-full z-0" />;
+    return (
+        <div className="relative w-full h-full">
+            <div ref={mapContainerRef} className="w-full h-full z-0" />
+            
+            {/* Layer Toggle Button */}
+            <button 
+                onClick={() => setIsSatellite(!isSatellite)}
+                className="absolute top-4 right-4 z-[400] bg-white/95 backdrop-blur-sm text-blue-900 px-3 py-2 rounded-xl shadow-lg border border-blue-100 font-bold text-[10px] uppercase tracking-widest flex items-center gap-2 active:scale-95 transition-transform hover:bg-white"
+            >
+                <Layers size={16} />
+                {isSatellite ? 'Mapa' : 'Satélite'}
+            </button>
+        </div>
+    );
 };
 
 export default MapComponent;

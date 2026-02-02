@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Marsella 2026 | Guía PWA</title>
+    
+<!-- PWA -->
+    <link rel="icon" href="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEh-7oxJPnLVPr8GI9DiiVRivWeddvULqjQOG0vqI-tyYYxbMAHkB8b-BsUAkl1J3_tO0vYGJGUIyv1Jc-dX7IcLkxMxxHIxQPGc-FnXj-PLpNIKD6f6D9yeC4z0ILa1pxwL6rAO3M7KVKTVKOz4mPiUsYlLC4sJliHl-8IPNHVN8BhfMQdggUDwKwNn24U/s320/Gemini_Generated_Image_wo63sswo63sswo63.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    
+    <!-- Tailwind CSS (CDN maintained for simplicity and config compatibility) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        marsella: { 
+                          50: '#eff6ff', 
+                          100: '#dbeafe', 
+                          200: '#bfdbfe', 
+                          300: '#93c5fd', 
+                          400: '#60a5fa', 
+                          500: '#3b82f6', 
+                          600: '#2563eb', 
+                          700: '#1d4ed8', 
+                          800: '#1e40af', 
+                          900: '#1e3a8a' 
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@300;400;700&display=swap" rel="stylesheet">
+
+    <style>
+        html, body { height: 100%; width: 100%; margin: 0; padding: 0; overscroll-behavior-y: none; background-color: #f8fafc; }
+        body { font-family: 'Roboto Condensed', sans-serif; -webkit-tap-highlight-color: transparent; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .custom-h-scrollbar::-webkit-scrollbar { height: 6px; }
+        .custom-h-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
+        .custom-h-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        .leaflet-bottom { bottom: 85px !important; }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "leaflet": "https://esm.sh/leaflet@^1.9.4",
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+    "recharts": "https://esm.sh/recharts@^3.7.0",
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
+  }
+}
+</script>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+</body>
+</html>

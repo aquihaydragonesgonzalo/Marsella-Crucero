@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-    CheckCircle2, Circle, MapPin, AlertTriangle, Clock, Navigation, Headphones, X, Maximize2 
+    CheckCircle2, Circle, MapPin, AlertTriangle, Clock, Navigation, Headphones, X, Maximize2, ArrowUp 
 } from 'lucide-react';
 import { Activity, Coordinates } from '../types';
 
@@ -9,10 +9,44 @@ interface TimelineProps {
     onToggleComplete: (id: string) => void;
     onLocate: (coords: Coordinates) => void;
     onOpenAudioGuide: (activity: Activity) => void;
+    userLocation: Coordinates | null;
 }
 
-const Timeline: React.FC<TimelineProps> = ({ itinerary, onToggleComplete, onLocate, onOpenAudioGuide }) => {
+const Timeline: React.FC<TimelineProps> = ({ itinerary, onToggleComplete, onLocate, onOpenAudioGuide, userLocation }) => {
     const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+
+    // Haversine formula for distance
+    const getDistanceInfo = (target: Coordinates) => {
+        if (!userLocation) return null;
+
+        const R = 6371e3; // Earth radius in meters
+        const φ1 = userLocation.lat * Math.PI / 180;
+        const φ2 = target.lat * Math.PI / 180;
+        const Δφ = (target.lat - userLocation.lat) * Math.PI / 180;
+        const Δλ = (target.lng - userLocation.lng) * Math.PI / 180;
+
+        const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+                  Math.cos(φ1) * Math.cos(φ2) *
+                  Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distMeters = R * c;
+
+        // Bearing calculation
+        const y = Math.sin(Δλ) * Math.cos(φ2);
+        const x = Math.cos(φ1) * Math.sin(φ2) -
+                  Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+        const θ = Math.atan2(y, x);
+        const bearing = (θ * 180 / Math.PI + 360) % 360;
+
+        let distanceText = "";
+        if (distMeters < 1000) {
+            distanceText = `${Math.round(distMeters)} m`;
+        } else {
+            distanceText = `${(distMeters / 1000).toFixed(1)} km`;
+        }
+
+        return { distanceText, bearing };
+    };
 
     const calculateDuration = (startStr: string, endStr: string) => {
         if(!startStr || !endStr) return "";
@@ -88,6 +122,7 @@ const Timeline: React.FC<TimelineProps> = ({ itinerary, onToggleComplete, onLoca
                     const prevAct = idx > 0 ? itinerary[idx - 1] : null;
                     const gap = prevAct ? calculateGap(prevAct.endTime, act.startTime) : 0;
                     const isCritical = act.notes === 'CRITICAL';
+                    const distanceInfo = act.coords ? getDistanceInfo(act.coords) : null;
                     
                     return (
                         <React.Fragment key={act.id}>
@@ -125,7 +160,24 @@ const Timeline: React.FC<TimelineProps> = ({ itinerary, onToggleComplete, onLoca
                                             </div>
                                             {isCritical && <AlertTriangle className="text-rose-600 animate-pulse" size={20} />}
                                         </div>
-                                        <div className="mb-3 text-sm text-slate-600 flex items-center flex-wrap gap-1"><MapPin size={14} className="mr-0.5 text-blue-700"/> {act.locationName}</div>
+                                        
+                                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                            <div className="text-sm text-slate-600 flex items-center gap-1">
+                                                <MapPin size={14} className="text-blue-700"/> 
+                                                <span>{act.locationName}</span>
+                                            </div>
+                                            {distanceInfo && (
+                                                <div className="flex items-center gap-1.5 bg-blue-50 px-2 py-1 rounded-lg border border-blue-100">
+                                                    <ArrowUp 
+                                                        size={14} 
+                                                        className="text-blue-600" 
+                                                        style={{ transform: `rotate(${distanceInfo.bearing}deg)` }} 
+                                                        strokeWidth={3}
+                                                    />
+                                                    <span className="text-[10px] font-black text-blue-800 whitespace-nowrap">{distanceInfo.distanceText}</span>
+                                                </div>
+                                            )}
+                                        </div>
                                         
                                         {act.image && (
                                             <div 

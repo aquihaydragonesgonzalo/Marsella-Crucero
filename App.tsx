@@ -35,6 +35,10 @@ const App = () => {
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(pos => {
                 setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+            }, (err) => {
+                console.warn("Geolocalización no disponible o denegada");
+            }, {
+                enableHighAccuracy: true
             });
         }
         
@@ -73,6 +77,7 @@ const App = () => {
                             onToggleComplete={handleToggleComplete} 
                             onLocate={handleLocate} 
                             onOpenAudioGuide={setAudioGuideActivity} 
+                            userLocation={userLocation}
                         />
                     </div>
                 )}

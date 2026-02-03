@@ -89,7 +89,7 @@ const App = () => {
                     />
                 )}
                 {activeTab === 'budget' && <Budget itinerary={itinerary} />}
-                {activeTab === 'guide' && <Guide userLocation={userLocation} />}
+                {activeTab === 'guide' && <Guide userLocation={userLocation} itinerary={itinerary} />}
 
                 {audioGuideActivity && (
                     <AudioGuideModal 

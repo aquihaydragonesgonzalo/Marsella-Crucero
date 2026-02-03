@@ -2,16 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { 
     Activity as ActivityIcon, Clock, Sun, Footprints, PhoneCall, 
     Thermometer, CalendarDays, Volume2, Languages, Cloud, 
-    CloudRain, CloudLightning, Wind 
+    CloudRain, CloudLightning, Wind, FileDown
 } from 'lucide-react';
-import { Coordinates, WeatherData } from '../types';
-import { PRONUNCIATIONS } from '../constants';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { Coordinates, WeatherData, Activity } from '../types';
+import { PRONUNCIATIONS, DATE_OF_VISIT } from '../constants';
 
 interface GuideProps {
     userLocation: Coordinates | null;
+    itinerary: Activity[];
 }
 
-const Guide: React.FC<GuideProps> = ({ userLocation }) => {
+const Guide: React.FC<GuideProps> = ({ userLocation, itinerary }) => {
     const [playing, setPlaying] = useState<string | null>(null);
     const [weather, setWeather] = useState<WeatherData | null>(null);
     const [loadingWeather, setLoadingWeather] = useState(true);
@@ -66,6 +69,54 @@ const Guide: React.FC<GuideProps> = ({ userLocation }) => {
         window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
     };
 
+    const downloadPDF = () => {
+        const doc = new jsPDF();
+        
+        // Header
+        doc.setFillColor(30, 58, 138); // Blue 900
+        doc.rect(0, 0, 210, 20, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text("GUÍA DE ESCALA: MARSELLA", 14, 13);
+        doc.setFontSize(10);
+        doc.text(DATE_OF_VISIT, 160, 13);
+
+        // Intro info
+        doc.setTextColor(50, 50, 50);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text("Resumen generado desde Marsella 2026 PWA", 14, 30);
+
+        const tableBody = itinerary.map(act => [
+            `${act.startTime} - ${act.endTime}`,
+            act.title,
+            act.locationName,
+            `${act.description}\n${act.keyDetails ? `Nota: ${act.keyDetails}` : ''}`,
+            act.priceEUR > 0 ? `${act.priceEUR}€` : '-'
+        ]);
+
+        autoTable(doc, {
+            startY: 35,
+            head: [['Horario', 'Actividad', 'Ubicación', 'Detalles', 'Coste']],
+            body: tableBody,
+            theme: 'grid',
+            headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' },
+            styles: { fontSize: 8, cellPadding: 3, overflow: 'linebreak' },
+            columnStyles: {
+                0: { cellWidth: 25 }, // Horario
+                1: { cellWidth: 40, fontStyle: 'bold' }, // Actividad
+                2: { cellWidth: 30 }, // Ubicación
+                3: { cellWidth: 'auto' }, // Detalles
+                4: { cellWidth: 15, halign: 'center' } // Coste
+            },
+            alternateRowStyles: { fillColor: [241, 245, 249] }
+        });
+
+        // Save
+        doc.save(`marsella-itinerario-${new Date().toISOString().split('T')[0]}.pdf`);
+    };
+
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr);
         return new Intl.DateTimeFormat('es-ES', { weekday: 'short', day: 'numeric' }).format(date);
@@ -82,7 +133,16 @@ const Guide: React.FC<GuideProps> = ({ userLocation }) => {
 
     return (
         <div className="pb-32 px-4 pt-6 max-w-lg mx-auto h-full overflow-y-auto no-scrollbar">
-            <h2 className="text-2xl font-bold text-blue-900 mb-6 uppercase tracking-tight">Guía Marsella</h2>
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-blue-900 uppercase tracking-tight">Guía Marsella</h2>
+                <button 
+                    onClick={downloadPDF} 
+                    className="flex items-center gap-2 bg-blue-100 hover:bg-blue-200 text-blue-900 px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors shadow-sm"
+                >
+                    <FileDown size={16} />
+                    <span>PDF</span>
+                </button>
+            </div>
 
             {/* Resumen de la Visita */}
             <div className="mb-8 bg-white rounded-[2rem] border border-blue-50 shadow-md p-6 overflow-hidden relative">

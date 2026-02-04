@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-    CheckCircle2, Circle, MapPin, AlertTriangle, Clock, Navigation, Headphones, X, Maximize2, ArrowUp 
+    CheckCircle2, Circle, MapPin, AlertTriangle, Clock, Navigation, Headphones, X, Maximize2, ArrowUp, Footprints
 } from 'lucide-react';
 import { Activity, Coordinates } from '../types';
 
@@ -14,6 +14,22 @@ interface TimelineProps {
 
 const Timeline: React.FC<TimelineProps> = ({ itinerary, onToggleComplete, onLocate, onOpenAudioGuide, userLocation }) => {
     const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+    const [currentTime, setCurrentTime] = useState(new Date());
+
+    // Update time for active state check
+    useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 30000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const isActivityActive = (start: string, end: string) => {
+        const currentMins = currentTime.getHours() * 60 + currentTime.getMinutes();
+        const [sh, sm] = start.split(':').map(Number);
+        const [eh, em] = end.split(':').map(Number);
+        const startMins = sh * 60 + sm;
+        const endMins = eh * 60 + em;
+        return currentMins >= startMins && currentMins <= endMins;
+    };
 
     // Haversine formula for distance
     const getDistanceInfo = (target: Coordinates) => {
@@ -45,7 +61,7 @@ const Timeline: React.FC<TimelineProps> = ({ itinerary, onToggleComplete, onLoca
             distanceText = `${(distMeters / 1000).toFixed(1)} km`;
         }
 
-        return { distanceText, bearing };
+        return { distanceText, bearing, rawDist: distMeters };
     };
 
     const calculateDuration = (startStr: string, endStr: string) => {
@@ -123,38 +139,42 @@ const Timeline: React.FC<TimelineProps> = ({ itinerary, onToggleComplete, onLoca
                     const gap = prevAct ? calculateGap(prevAct.endTime, act.startTime) : 0;
                     const isCritical = act.notes === 'CRITICAL';
                     const distanceInfo = act.coords ? getDistanceInfo(act.coords) : null;
+                    const isActive = isActivityActive(act.startTime, act.endTime);
+                    const isNearby = distanceInfo && distanceInfo.rawDist < 150; // Less than 150m
                     
                     return (
                         <React.Fragment key={act.id}>
                             {gap > 0 && (
-                                <div className="mb-4 ml-6 flex flex-col items-start gap-1.5">
-                                    <div className="bg-blue-50/80 px-2.5 py-1 rounded-full border border-blue-100 flex items-center gap-2 shadow-sm">
-                                        <Clock size={10} className="text-blue-400" />
-                                        <span className="text-[9px] font-black text-blue-500 uppercase tracking-tighter">{formatGap(gap)} traslado / espera</span>
+                                <div className="mb-4 ml-6 flex flex-col items-start gap-1.5 relative">
+                                    <div className="bg-slate-100 px-3 py-1.5 rounded-r-xl border-l-4 border-slate-300 flex items-center gap-2 shadow-sm w-full max-w-[200px]">
+                                        <Footprints size={12} className="text-slate-400" />
+                                        <div className="flex flex-col">
+                                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Tiempo de traslado</span>
+                                            <span className="text-[10px] font-black text-slate-700 leading-none">{formatGap(gap)}</span>
+                                        </div>
                                     </div>
-                                    <div className="w-24 h-1 bg-blue-50 rounded-full overflow-hidden ml-1">
-                                        {prevAct && (
-                                            <div 
-                                                className="h-full bg-blue-300 transition-all duration-1000" 
-                                                style={{ width: `${calculateTimeProgress(prevAct.endTime, act.startTime)}%` }}
-                                            ></div>
-                                        )}
-                                    </div>
+                                    {prevAct && (
+                                         <div className="absolute left-[-26px] top-0 bottom-0 w-1 bg-slate-200 z-0" />
+                                    )}
                                 </div>
                             )}
                             
-                            <div className="mb-8 ml-6 relative">
-                                <div onClick={() => onToggleComplete(act.id)} className={`absolute -left-[31px] top-0 rounded-full bg-white border-2 cursor-pointer z-10 transition-colors ${act.completed ? 'border-emerald-500 text-emerald-500 shadow-sm' : 'border-blue-700 text-blue-700 shadow-sm'}`}>
+                            <div className={`mb-8 ml-6 relative transition-all duration-500 ${isActive ? 'scale-[1.02]' : ''}`}>
+                                <div onClick={() => onToggleComplete(act.id)} className={`absolute -left-[31px] top-0 rounded-full bg-white border-2 cursor-pointer z-10 transition-all ${act.completed ? 'border-emerald-500 text-emerald-500 shadow-sm' : isActive ? 'border-amber-400 text-amber-500 scale-110 shadow-md animate-pulse' : 'border-blue-700 text-blue-700 shadow-sm'}`}>
                                     {act.completed ? <CheckCircle2 size={24} /> : <Circle size={24} />}
                                 </div>
-                                <div className={`rounded-2xl border shadow-sm transition-all overflow-hidden bg-white ${act.notes === 'CRITICAL' ? 'border-rose-500 bg-rose-50' : act.completed ? 'opacity-70 border-emerald-500' : 'border-blue-50'}`}>
-                                    <div className="w-full h-1.5 bg-blue-50 overflow-hidden"><div className={`h-full ${calculateTimeProgress(act.startTime, act.endTime) === 100 ? 'bg-slate-300' : 'bg-blue-800'}`} style={{ width: `${calculateTimeProgress(act.startTime, act.endTime)}%` }}></div></div>
+                                <div className={`rounded-2xl border shadow-sm transition-all overflow-hidden bg-white 
+                                    ${isActive ? 'ring-2 ring-amber-400 ring-offset-2 shadow-lg z-10' : ''}
+                                    ${act.notes === 'CRITICAL' ? 'border-rose-500 bg-rose-50' : act.completed ? 'opacity-70 border-emerald-500 grayscale-[0.3]' : 'border-blue-50'}
+                                `}>
+                                    <div className="w-full h-1.5 bg-blue-50 overflow-hidden"><div className={`h-full transition-all duration-1000 ${calculateTimeProgress(act.startTime, act.endTime) === 100 ? 'bg-emerald-400' : 'bg-blue-600'}`} style={{ width: `${calculateTimeProgress(act.startTime, act.endTime)}%` }}></div></div>
                                     <div className="p-5">
                                         <div className="flex justify-between items-start mb-2">
                                             <div className="flex-1">
                                                 <div className="flex items-center space-x-2 mb-2">
-                                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 uppercase tracking-tighter">{act.startTime} - {act.endTime}</span>
+                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tighter ${isActive ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>{act.startTime} - {act.endTime}</span>
                                                     <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">{calculateDuration(act.startTime, act.endTime)}</span>
+                                                    {isActive && <span className="px-2 py-0.5 rounded text-[8px] font-black bg-amber-500 text-white animate-pulse">EN CURSO</span>}
                                                 </div>
                                                 <h3 className="font-bold text-lg text-slate-800 leading-tight">{act.title}</h3>
                                             </div>
@@ -167,14 +187,20 @@ const Timeline: React.FC<TimelineProps> = ({ itinerary, onToggleComplete, onLoca
                                                 <span>{act.locationName}</span>
                                             </div>
                                             {distanceInfo && (
-                                                <div className="flex items-center gap-1.5 bg-blue-50 px-2 py-1 rounded-lg border border-blue-100">
-                                                    <ArrowUp 
-                                                        size={14} 
-                                                        className="text-blue-600" 
-                                                        style={{ transform: `rotate(${distanceInfo.bearing}deg)` }} 
-                                                        strokeWidth={3}
-                                                    />
-                                                    <span className="text-[10px] font-black text-blue-800 whitespace-nowrap">{distanceInfo.distanceText}</span>
+                                                <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-colors ${isNearby ? 'bg-emerald-100 border-emerald-200' : 'bg-blue-50 border-blue-100'}`}>
+                                                    {isNearby ? (
+                                                        <Navigation size={14} className="text-emerald-600 animate-bounce" fill="currentColor" />
+                                                    ) : (
+                                                        <ArrowUp 
+                                                            size={14} 
+                                                            className="text-blue-600" 
+                                                            style={{ transform: `rotate(${distanceInfo.bearing}deg)` }} 
+                                                            strokeWidth={3}
+                                                        />
+                                                    )}
+                                                    <span className={`text-[10px] font-black whitespace-nowrap ${isNearby ? 'text-emerald-800' : 'text-blue-800'}`}>
+                                                        {isNearby ? 'ESTÁS AQUÍ' : distanceInfo.distanceText}
+                                                    </span>
                                                 </div>
                                             )}
                                         </div>

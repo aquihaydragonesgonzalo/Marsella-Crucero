@@ -29,6 +29,7 @@ export interface Waypoint {
 export interface CustomWaypoint {
   id: string;
   name: string;
+  description?: string;
   lat: number;
   lng: number;
   timestamp: number;

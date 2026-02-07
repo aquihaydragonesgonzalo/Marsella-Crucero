@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import { Layers, Plus, MapPin, Trash2 } from 'lucide-react';
+import { Layers, Plus, MapPin, Trash2, Save, X, AlignLeft } from 'lucide-react';
 import { Activity, Coordinates, CustomWaypoint } from '../types';
 import { GPX_WAYPOINTS, MARSEILLE_TRACK } from '../constants';
 import { createRoot } from 'react-dom/client';
@@ -23,6 +23,11 @@ const MapComponent: React.FC<MapComponentProps> = ({ activities, userLocation, f
         const saved = localStorage.getItem('marsella_custom_waypoints');
         return saved ? JSON.parse(saved) : [];
     });
+
+    // State for the Add Waypoint Modal
+    const [pendingCoords, setPendingCoords] = useState<Coordinates | null>(null);
+    const [newWpName, setNewWpName] = useState('');
+    const [newWpDesc, setNewWpDesc] = useState('');
 
     // Persist custom waypoints
     useEffect(() => {
@@ -47,18 +52,10 @@ const MapComponent: React.FC<MapComponentProps> = ({ activities, userLocation, f
 
         const handleMapClick = (e: L.LeafletMouseEvent) => {
             if (isAddMode) {
-                const name = window.prompt("Nombre del punto de interés:");
-                if (name && name.trim() !== "") {
-                    const newWaypoint: CustomWaypoint = {
-                        id: Date.now().toString(),
-                        name: name.trim(),
-                        lat: e.latlng.lat,
-                        lng: e.latlng.lng,
-                        timestamp: Date.now()
-                    };
-                    setCustomWaypoints(prev => [...prev, newWaypoint]);
-                    setIsAddMode(false); // Disable add mode after adding
-                }
+                setPendingCoords({ lat: e.latlng.lat, lng: e.latlng.lng });
+                setNewWpName('');
+                setNewWpDesc('');
+                // Don't disable add mode yet, wait for user input in modal
             }
         };
 
@@ -73,6 +70,27 @@ const MapComponent: React.FC<MapComponentProps> = ({ activities, userLocation, f
             map.off('click', handleMapClick);
         };
     }, [isAddMode]);
+
+    const handleSaveWaypoint = () => {
+        if (pendingCoords && newWpName.trim() !== "") {
+            const newWaypoint: CustomWaypoint = {
+                id: Date.now().toString(),
+                name: newWpName.trim(),
+                description: newWpDesc.trim(),
+                lat: pendingCoords.lat,
+                lng: pendingCoords.lng,
+                timestamp: Date.now()
+            };
+            setCustomWaypoints(prev => [...prev, newWaypoint]);
+            setPendingCoords(null);
+            setIsAddMode(false);
+        }
+    };
+
+    const handleCancelWaypoint = () => {
+        setPendingCoords(null);
+        setIsAddMode(false);
+    };
 
     // Handle Tile Layer Switching
     useEffect(() => {
@@ -151,20 +169,29 @@ const MapComponent: React.FC<MapComponentProps> = ({ activities, userLocation, f
             // Render React component into the popup container
             const root = createRoot(container);
             root.render(
-                <div className="p-2 min-w-[150px] font-sans">
-                    <div className="flex items-center justify-between mb-2 gap-2">
-                        <h3 className="font-bold text-purple-700 text-sm m-0 leading-tight">{wp.name}</h3>
+                <div className="p-2 min-w-[160px] font-sans">
+                    <div className="flex items-start justify-between mb-2 gap-2">
+                        <div className="flex-1">
+                            <h3 className="font-bold text-purple-700 text-sm m-0 leading-tight break-words">{wp.name}</h3>
+                            {wp.description && (
+                                <p className="text-[11px] text-slate-600 mt-1 mb-0 leading-snug break-words border-l-2 border-purple-200 pl-2">
+                                    {wp.description}
+                                </p>
+                            )}
+                        </div>
                         <button 
                             onClick={() => handleDeleteWaypoint(wp.id)}
-                            className="text-rose-500 hover:text-rose-700 p-1 bg-rose-50 rounded-full"
+                            className="text-rose-500 hover:text-rose-700 p-1 bg-rose-50 rounded-full shrink-0 mt-0.5"
                         >
                             <Trash2 size={14} />
                         </button>
                     </div>
-                    <p className="text-[10px] text-slate-400 m-0">Mis guardados</p>
+                    <div className="text-[10px] text-slate-400 mt-2 mb-2 flex items-center gap-1">
+                         <MapPin size={10} /> Mis guardados
+                    </div>
                     <a href={`https://www.google.com/maps/dir/?api=1&destination=${wp.lat},${wp.lng}`} 
                        target="_blank" 
-                       className="mt-2 block w-full text-center bg-purple-600 text-white text-[10px] font-bold py-1.5 rounded-lg uppercase tracking-wider"
+                       className="block w-full text-center bg-purple-600 text-white text-[10px] font-bold py-1.5 rounded-lg uppercase tracking-wider hover:bg-purple-700 transition-colors"
                     >
                         Ir aquí
                     </a>
@@ -217,7 +244,10 @@ const MapComponent: React.FC<MapComponentProps> = ({ activities, userLocation, f
                 </button>
 
                 <button 
-                    onClick={() => setIsAddMode(!isAddMode)}
+                    onClick={() => {
+                        setIsAddMode(!isAddMode);
+                        setPendingCoords(null); // Reset pending if cancelling via toggle
+                    }}
                     className={`px-3 py-2 rounded-xl shadow-lg border font-bold text-[10px] uppercase tracking-widest flex items-center gap-2 active:scale-95 transition-all ${
                         isAddMode 
                         ? 'bg-purple-600 text-white border-purple-700 animate-pulse' 
@@ -230,9 +260,66 @@ const MapComponent: React.FC<MapComponentProps> = ({ activities, userLocation, f
             </div>
 
             {/* Hint Toast for Add Mode */}
-            {isAddMode && (
+            {isAddMode && !pendingCoords && (
                 <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[400] bg-purple-900/90 text-white px-4 py-2 rounded-full text-xs font-bold shadow-xl backdrop-blur-md animate-bounce">
                     Toca cualquier punto del mapa
+                </div>
+            )}
+
+            {/* Add Waypoint Modal */}
+            {pendingCoords && (
+                <div className="absolute inset-0 z-[500] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold text-purple-900 flex items-center gap-2">
+                                <MapPin size={20} /> Nuevo Punto
+                            </h3>
+                            <button onClick={handleCancelWaypoint} className="p-1 hover:bg-slate-100 rounded-full text-slate-400">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 tracking-wider">Nombre</label>
+                                <input 
+                                    type="text" 
+                                    autoFocus
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all placeholder:text-slate-300"
+                                    placeholder="Ej. Restaurante favorito"
+                                    value={newWpName}
+                                    onChange={(e) => setNewWpName(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 tracking-wider flex items-center gap-1">
+                                    <AlignLeft size={10} /> Descripción <span className="text-slate-300 font-normal normal-case">(Opcional)</span>
+                                </label>
+                                <textarea 
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all placeholder:text-slate-300 min-h-[80px] resize-none"
+                                    placeholder="Añade notas, horarios o detalles..."
+                                    value={newWpDesc}
+                                    onChange={(e) => setNewWpDesc(e.target.value)}
+                                />
+                            </div>
+                            
+                            <div className="flex gap-3 pt-2">
+                                <button 
+                                    onClick={handleCancelWaypoint}
+                                    className="flex-1 py-3 rounded-xl font-bold text-xs uppercase tracking-wider text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button 
+                                    onClick={handleSaveWaypoint}
+                                    disabled={!newWpName.trim()}
+                                    className="flex-1 py-3 rounded-xl font-bold text-xs uppercase tracking-wider text-white bg-purple-600 hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-200"
+                                >
+                                    <Save size={16} /> Guardar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

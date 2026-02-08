@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import { Layers, Plus, MapPin, Trash2, Save, X, AlignLeft } from 'lucide-react';
+import { Layers, Plus, MapPin, Trash2, Save, X, AlignLeft, Search, Loader2 } from 'lucide-react';
 import { Activity, Coordinates, CustomWaypoint } from '../types';
 import { GPX_WAYPOINTS, MARSEILLE_TRACK } from '../constants';
 import { createRoot } from 'react-dom/client';
@@ -11,10 +11,18 @@ interface MapComponentProps {
     focusedLocation: Coordinates | null;
 }
 
+interface SearchResult {
+    place_id: number;
+    lat: string;
+    lon: string;
+    display_name: string;
+}
+
 const MapComponent: React.FC<MapComponentProps> = ({ activities, userLocation, focusedLocation }) => {
     const mapContainerRef = useRef<HTMLDivElement>(null);
     const mapInstanceRef = useRef<L.Map | null>(null);
     const layersRef = useRef<L.Layer[]>([]);
+    const searchMarkerRef = useRef<L.Marker | null>(null);
     const tileLayerRef = useRef<L.TileLayer | null>(null);
     
     const [isSatellite, setIsSatellite] = useState(false);
@@ -23,6 +31,12 @@ const MapComponent: React.FC<MapComponentProps> = ({ activities, userLocation, f
         const saved = localStorage.getItem('marsella_custom_waypoints');
         return saved ? JSON.parse(saved) : [];
     });
+
+    // Search State
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [showResults, setShowResults] = useState(false);
 
     // State for the Add Waypoint Modal
     const [pendingCoords, setPendingCoords] = useState<Coordinates | null>(null);
@@ -45,12 +59,68 @@ const MapComponent: React.FC<MapComponentProps> = ({ activities, userLocation, f
         return () => { map.remove(); mapInstanceRef.current = null; };
     }, []);
 
+    // Handle Search
+    const handleSearch = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!searchQuery.trim()) return;
+
+        setIsSearching(true);
+        setShowResults(true);
+
+        try {
+            // Viewbox restricted roughly to Marseille area
+            const response = await fetch(
+                `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&viewbox=5.2,43.1,5.6,43.5&bounded=1&limit=5`
+            );
+            const data = await response.json();
+            setSearchResults(data);
+        } catch (error) {
+            console.error("Search error:", error);
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    const handleSelectResult = (result: SearchResult) => {
+        const lat = parseFloat(result.lat);
+        const lng = parseFloat(result.lon);
+        const map = mapInstanceRef.current;
+
+        if (map) {
+            map.flyTo([lat, lng], 16);
+            
+            // Remove previous search marker if exists
+            if (searchMarkerRef.current) {
+                searchMarkerRef.current.remove();
+            }
+
+            // Add new marker
+            const marker = L.marker([lat, lng]).addTo(map);
+            marker.bindPopup(`
+                <div style="font-family: sans-serif; max-width: 200px;">
+                    <h3 style="font-weight: bold; color: #1e3a8a; margin-bottom: 4px;">Resultado</h3>
+                    <p style="font-size: 12px; margin: 0;">${result.display_name}</p>
+                </div>
+            `).openPopup();
+            
+            searchMarkerRef.current = marker;
+            setShowResults(false);
+            setSearchQuery('');
+        }
+    };
+
     // Handle Map Clicks for Adding Waypoints
     useEffect(() => {
         const map = mapInstanceRef.current;
         if (!map) return;
 
         const handleMapClick = (e: L.LeafletMouseEvent) => {
+            // Close search results if clicking on map
+            if (showResults) {
+                setShowResults(false);
+                return;
+            }
+
             if (isAddMode) {
                 setPendingCoords({ lat: e.latlng.lat, lng: e.latlng.lng });
                 setNewWpName('');
@@ -69,7 +139,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ activities, userLocation, f
         return () => {
             map.off('click', handleMapClick);
         };
-    }, [isAddMode]);
+    }, [isAddMode, showResults]);
 
     const handleSaveWaypoint = () => {
         if (pendingCoords && newWpName.trim() !== "") {
@@ -232,6 +302,47 @@ const MapComponent: React.FC<MapComponentProps> = ({ activities, userLocation, f
     return (
         <div className="relative w-full h-full">
             <div ref={mapContainerRef} className="w-full h-full z-0" />
+
+            {/* Search Bar - Top Left */}
+            <div className="absolute top-4 left-4 z-[400] w-[70%] max-w-[300px] flex flex-col gap-2">
+                <form onSubmit={handleSearch} className="relative shadow-lg rounded-xl">
+                    <input 
+                        type="text" 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onFocus={() => { if(searchResults.length > 0) setShowResults(true); }}
+                        placeholder="Buscar en Marsella..."
+                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold text-slate-700 placeholder:text-slate-400 bg-white/95 backdrop-blur-sm"
+                    />
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                        {isSearching ? <Loader2 size={18} className="animate-spin text-blue-500" /> : <Search size={18} />}
+                    </div>
+                    {searchQuery && (
+                         <button 
+                            type="button"
+                            onClick={() => { setSearchQuery(''); setSearchResults([]); setShowResults(false); }}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 p-1"
+                         >
+                            <X size={16} />
+                         </button>
+                    )}
+                </form>
+
+                {/* Search Results Dropdown */}
+                {showResults && searchResults.length > 0 && (
+                    <div className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-blue-50 overflow-hidden max-h-[50vh] overflow-y-auto animate-in fade-in slide-in-from-top-2">
+                        {searchResults.map((result) => (
+                            <button
+                                key={result.place_id}
+                                onClick={() => handleSelectResult(result)}
+                                className="w-full text-left px-4 py-3 border-b border-slate-50 last:border-0 hover:bg-blue-50 transition-colors"
+                            >
+                                <p className="text-xs font-bold text-slate-700 line-clamp-2">{result.display_name}</p>
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
             
             {/* Top Right Controls */}
             <div className="absolute top-4 right-4 z-[400] flex flex-col gap-3">

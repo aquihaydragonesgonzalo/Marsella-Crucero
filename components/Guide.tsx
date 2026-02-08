@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
     Activity as ActivityIcon, Clock, Sun, Footprints, PhoneCall, 
     Thermometer, CalendarDays, Volume2, Languages, Cloud, 
@@ -12,41 +12,11 @@ import { PRONUNCIATIONS, DATE_OF_VISIT } from '../constants';
 interface GuideProps {
     userLocation: Coordinates | null;
     itinerary: Activity[];
+    weather: WeatherData | null;
 }
 
-const Guide: React.FC<GuideProps> = ({ userLocation, itinerary }) => {
+const Guide: React.FC<GuideProps> = ({ userLocation, itinerary, weather }) => {
     const [playing, setPlaying] = useState<string | null>(null);
-    const [weather, setWeather] = useState<WeatherData | null>(null);
-    const [loadingWeather, setLoadingWeather] = useState(true);
-
-    useEffect(() => {
-        const fetchWeather = async () => {
-            try {
-                const response = await fetch(
-                    'https://api.open-meteo.com/v1/forecast?latitude=43.2965&longitude=5.3698&hourly=temperature_2m,weathercode&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=Europe%2FParis'
-                );
-                const data = await response.json();
-                setWeather({
-                    hourly: {
-                        time: data.hourly.time,
-                        temperature: data.hourly.temperature_2m,
-                        code: data.hourly.weathercode
-                    },
-                    daily: {
-                        time: data.daily.time,
-                        weathercode: data.daily.weathercode,
-                        temperature_2m_max: data.daily.temperature_2m_max,
-                        temperature_2m_min: data.daily.temperature_2m_min
-                    }
-                });
-            } catch (error) {
-                console.error("Clima error:", error);
-            } finally {
-                setLoadingWeather(false);
-            }
-        };
-        fetchWeather();
-    }, []);
 
     const getWeatherIcon = (code: number, size = 20) => {
         if (code <= 1) return <Sun size={size} className="text-amber-500" />;
@@ -206,9 +176,9 @@ const Guide: React.FC<GuideProps> = ({ userLocation, itinerary }) => {
                     <h3 className="text-sm font-bold uppercase tracking-widest text-slate-800">Clima Marsella</h3>
                 </div>
 
-                {loadingWeather ? (
+                {!weather ? (
                         <div className="h-24 bg-white rounded-3xl animate-pulse border border-blue-50"></div>
-                ) : weather ? (
+                ) : (
                     <>
                     {/* Hourly Forecast */}
                     <div className="bg-white p-2 pb-5 rounded-[2.5rem] border border-blue-50 shadow-xl overflow-hidden mb-4">
@@ -257,7 +227,7 @@ const Guide: React.FC<GuideProps> = ({ userLocation, itinerary }) => {
                         </div>
                     </div>
                     </>
-                ) : null}
+                )}
             </div>
 
             <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center uppercase tracking-widest px-1">

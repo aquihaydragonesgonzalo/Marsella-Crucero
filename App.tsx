@@ -6,7 +6,7 @@ import Budget from './components/Budget';
 import Guide from './components/Guide';
 import AudioGuideModal from './components/AudioGuideModal';
 import { INITIAL_ITINERARY, SHIP_ONBOARD_TIME } from './constants';
-import { Activity, Coordinates } from './types';
+import { Activity, Coordinates, WeatherData } from './types';
 
 const App = () => {
     const [itinerary, setItinerary] = useState<Activity[]>(INITIAL_ITINERARY);
@@ -15,8 +15,12 @@ const App = () => {
     const [mapFocus, setMapFocus] = useState<Coordinates | null>(null);
     const [countdown, setCountdown] = useState('--h --m --s');
     const [audioGuideActivity, setAudioGuideActivity] = useState<Activity | null>(null);
+    
+    // Weather State
+    const [weather, setWeather] = useState<WeatherData | null>(null);
 
     useEffect(() => {
+        // Countdown Timer
         const timer = setInterval(() => {
             const now = new Date();
             const [h, m] = SHIP_ONBOARD_TIME.split(':').map(Number);
@@ -32,6 +36,7 @@ const App = () => {
             }
         }, 1000);
 
+        // Geolocation
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(pos => {
                 setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
@@ -42,6 +47,32 @@ const App = () => {
             });
         }
         
+        // Fetch Weather
+        const fetchWeather = async () => {
+            try {
+                const response = await fetch(
+                    'https://api.open-meteo.com/v1/forecast?latitude=43.2965&longitude=5.3698&hourly=temperature_2m,weathercode&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=Europe%2FParis'
+                );
+                const data = await response.json();
+                setWeather({
+                    hourly: {
+                        time: data.hourly.time,
+                        temperature: data.hourly.temperature_2m,
+                        code: data.hourly.weathercode
+                    },
+                    daily: {
+                        time: data.daily.time,
+                        weathercode: data.daily.weathercode,
+                        temperature_2m_max: data.daily.temperature_2m_max,
+                        temperature_2m_min: data.daily.temperature_2m_min
+                    }
+                });
+            } catch (error) {
+                console.error("Clima error:", error);
+            }
+        };
+        fetchWeather();
+
         return () => clearInterval(timer);
     }, []);
 
@@ -78,6 +109,7 @@ const App = () => {
                             onLocate={handleLocate} 
                             onOpenAudioGuide={setAudioGuideActivity} 
                             userLocation={userLocation}
+                            weather={weather}
                         />
                     </div>
                 )}
@@ -89,7 +121,7 @@ const App = () => {
                     />
                 )}
                 {activeTab === 'budget' && <Budget itinerary={itinerary} />}
-                {activeTab === 'guide' && <Guide userLocation={userLocation} itinerary={itinerary} />}
+                {activeTab === 'guide' && <Guide userLocation={userLocation} itinerary={itinerary} weather={weather} />}
 
                 {audioGuideActivity && (
                     <AudioGuideModal 

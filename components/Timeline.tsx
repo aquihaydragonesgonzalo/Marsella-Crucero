@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
-    CheckCircle2, Circle, MapPin, AlertTriangle, Clock, Navigation, Headphones, X, Maximize2, ArrowUp, Footprints
+    CheckCircle2, Circle, MapPin, AlertTriangle, Clock, Navigation, Headphones, X, Maximize2, ArrowUp, Footprints,
+    Sun, Cloud, CloudRain, CloudLightning, Wind
 } from 'lucide-react';
-import { Activity, Coordinates } from '../types';
+import { Activity, Coordinates, WeatherData } from '../types';
 
 interface TimelineProps {
     itinerary: Activity[];
@@ -10,9 +11,10 @@ interface TimelineProps {
     onLocate: (coords: Coordinates) => void;
     onOpenAudioGuide: (activity: Activity) => void;
     userLocation: Coordinates | null;
+    weather: WeatherData | null;
 }
 
-const Timeline: React.FC<TimelineProps> = ({ itinerary, onToggleComplete, onLocate, onOpenAudioGuide, userLocation }) => {
+const Timeline: React.FC<TimelineProps> = ({ itinerary, onToggleComplete, onLocate, onOpenAudioGuide, userLocation, weather }) => {
     const [zoomedImage, setZoomedImage] = useState<string | null>(null);
     const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -29,6 +31,36 @@ const Timeline: React.FC<TimelineProps> = ({ itinerary, onToggleComplete, onLoca
         const startMins = sh * 60 + sm;
         const endMins = eh * 60 + em;
         return currentMins >= startMins && currentMins <= endMins;
+    };
+
+    // Helper to get weather for a specific activity time
+    const getActivityWeather = (timeStr: string) => {
+        if (!weather || !weather.hourly) return null;
+        
+        // Simple logic: match the activity hour to the current day's hourly forecast
+        // Since API returns ISO strings like "2023-10-27T10:00", we match the "T10:00" part approx
+        const activityHour = timeStr.split(':')[0]; // "10"
+        
+        // Find the index in hourly.time that matches this hour for the current day
+        // Note: This matches the *current* day's weather for the demo, as we can't forecast 2026.
+        const today = new Date().toISOString().split('T')[0];
+        const index = weather.hourly.time.findIndex(t => t.startsWith(`${today}T${activityHour}`));
+        
+        if (index !== -1) {
+            return {
+                temp: Math.round(weather.hourly.temperature[index]),
+                code: weather.hourly.code[index]
+            };
+        }
+        return null;
+    };
+
+    const getWeatherIcon = (code: number, size = 14) => {
+        if (code <= 1) return <Sun size={size} className="text-amber-500" />;
+        if (code <= 3) return <Cloud size={size} className="text-slate-400" />;
+        if (code <= 67) return <CloudRain size={size} className="text-blue-500" />;
+        if (code <= 99) return <CloudLightning size={size} className="text-purple-500" />;
+        return <Wind size={size} className="text-slate-400" />;
     };
 
     // Haversine formula for distance
@@ -141,6 +173,7 @@ const Timeline: React.FC<TimelineProps> = ({ itinerary, onToggleComplete, onLoca
                     const distanceInfo = act.coords ? getDistanceInfo(act.coords) : null;
                     const isActive = isActivityActive(act.startTime, act.endTime);
                     const isNearby = distanceInfo && distanceInfo.rawDist < 150; // Less than 150m
+                    const actWeather = getActivityWeather(act.startTime);
                     
                     return (
                         <React.Fragment key={act.id}>
@@ -171,10 +204,16 @@ const Timeline: React.FC<TimelineProps> = ({ itinerary, onToggleComplete, onLoca
                                     <div className="p-5">
                                         <div className="flex justify-between items-start mb-2">
                                             <div className="flex-1">
-                                                <div className="flex items-center space-x-2 mb-2">
+                                                <div className="flex items-center flex-wrap gap-2 mb-2">
                                                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tighter ${isActive ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>{act.startTime} - {act.endTime}</span>
                                                     <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">{calculateDuration(act.startTime, act.endTime)}</span>
                                                     {isActive && <span className="px-2 py-0.5 rounded text-[8px] font-black bg-amber-500 text-white animate-pulse">EN CURSO</span>}
+                                                    {actWeather && (
+                                                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50/80 border border-blue-100">
+                                                            {getWeatherIcon(actWeather.code, 12)}
+                                                            <span className="text-[10px] font-bold text-blue-900">{actWeather.temp}°</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <h3 className="font-bold text-lg text-slate-800 leading-tight">{act.title}</h3>
                                             </div>
